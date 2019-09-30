@@ -33,7 +33,7 @@ public class ConsumersDriver {
 
 		final List<ConsumerLoop> consumers = new ArrayList<>();
 		for (int i = 0; i < numConsumers; i++) {
-			ConsumerLoop consumer = new ConsumerLoop(i, groupId, topics);
+			ConsumerLoop consumer = new ConsumerLoop(i, groupId, topics); // here each conumer instance is executed in its own thread-id.
 			consumers.add(consumer);
 			executor.submit(consumer);
 		}
