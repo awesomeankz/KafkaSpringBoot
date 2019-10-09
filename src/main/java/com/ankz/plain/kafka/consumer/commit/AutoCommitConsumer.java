@@ -11,6 +11,14 @@ import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.errors.WakeupException;
 import org.apache.kafka.common.serialization.StringDeserializer;
 
+/**
+ * 
+ * @author ankit.kamal
+ *
+ *This is basic auto-commit as per config defined.
+ *
+ *<pre> second {@link CommitSyncConsumer}
+ */
 public class AutoCommitConsumer implements Runnable {
 
 	private final KafkaConsumer<String, String> consumer;

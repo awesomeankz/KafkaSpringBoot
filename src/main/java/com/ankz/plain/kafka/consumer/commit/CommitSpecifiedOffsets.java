@@ -1,5 +1,6 @@
 package com.ankz.plain.kafka.consumer.commit;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -9,32 +10,31 @@ import org.apache.kafka.clients.consumer.CommitFailedException;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
 import org.apache.kafka.common.serialization.StringDeserializer;
 
 /**
  * 
  * @author ankit.kamal
- *
- *
- *         consumer.commitSync(); // commitSync API with no arguments commits
- *         the offsets returned in the last call to poll.
  * 
- *         Calling it at the end of processing ensures at-least-once but may
- *         cause duplicates.
- * 
- *         Calling it at the beginning ensures at-most-once; reducing duplicates.
- *         
- *         <pre> Third {@link CommitAsyncConsumer}
+ *         All previous approach commit the last offset of the batches fetched
+ *         by poll(). In case, we need to commit offset in the middle of the
+ *         batch we can pass the map
+ *
  */
-public class CommitSyncConsumer implements Runnable {
+public class CommitSpecifiedOffsets implements Runnable {
 
 	private final KafkaConsumer<String, String> consumer;
 	private final List<String> topics;
 	private final int id;
 
+	private Map<TopicPartition, OffsetAndMetadata> currentOffsetsMap = new HashMap<>();
+	int count = 0;
+
 	// construct
-	public CommitSyncConsumer(int id, String groupId, List<String> topics) {
+	public CommitSpecifiedOffsets(int id, String groupId, List<String> topics) {
 		this.id = id;
 		this.topics = topics;
 		Properties props = new Properties();
@@ -63,24 +63,21 @@ public class CommitSyncConsumer implements Runnable {
 					data.put("offset", record.offset());
 					data.put("value", record.value());
 					System.out.println(this.id + ": " + data);
-					/*
-					 * https://www.confluent.io/blog/tutorial-getting-started-with-the-new-apache-
-					 * kafka-0-9-consumer-client/
-					 * 
-					 * Committing offset after each message is processed. Using the commitSync API
-					 * with no arguments commits the offsets returned in the last call to poll.
-					 * 
-					 * 
-					 * calling commitSync api after processing message gives "atleast-once"
-					 * guarantee.
-					 * 
-					 * if we want "atmost-once" guarantee, we need to call commitSync() before
-					 * processing.
-					 */
 
 					try {
-						consumer.commitSync(); // commitSync API with no arguments commits the offsets returned in the
-												// last call to poll.
+						/*
+						 * After reading each record, we update the offsets map with the offset of the
+						 * next message we expect to process. This is where we’ll start reading next
+						 * time we start.
+						 * 
+						 * this takes Map<TopicPartition, OffsetAndMetadata>; and we do +1 to manually
+						 * to set offset. Both sync and async api are valid here.
+						 * 
+						 * we can  decide to commit current offsets every 1,000 records. if (count % 1000 == 0)
+						 */
+						consumer.commitSync(
+								Collections.singletonMap(new TopicPartition(record.topic(), record.partition()),
+										new OffsetAndMetadata(record.offset() + 1)));
 
 					} catch (CommitFailedException e) {
 						// application specific failure handling
