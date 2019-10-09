@@ -1,44 +1,36 @@
-package com.ankz.plain.kafka.consumer.commit;
+package com.ankz.plain.kafka.consumer.rebalance;
 
+import java.time.Duration;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
 import org.apache.kafka.clients.consumer.CommitFailedException;
+import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
-import org.apache.kafka.clients.consumer.OffsetCommitCallback;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
 import org.apache.kafka.common.serialization.StringDeserializer;
 
-/**
- * 
- * @author ankit.kamal
- * 
- *         One drawback of manual commit is that the application is blocked
- *         until the broker responds to the commit request. This will limit the
- *         throughput of the application.
- * 
- *         Another option is this asynchronous commit API. It doesn't wait for
- *         broker response post offset-commit.However we can have a callback in
- *         case of failures.
- * 
- *         <pre>
- *         Fourth {@link CommitSpecifiedOffsets}
- * 
- */
-public class CommitAsyncConsumer implements Runnable {
+
+public class ConsumeSpecifiedOffsets implements Runnable {
+	
+
 
 	private final KafkaConsumer<String, String> consumer;
 	private final List<String> topics;
 	private final int id;
 
+	private Map<TopicPartition, OffsetAndMetadata> currentOffsetsMap = new HashMap<>();
+	int count = 0;
+
 	// construct
-	public CommitAsyncConsumer(int id, String groupId, List<String> topics) {
+	public ConsumeSpecifiedOffsets(int id, String groupId, List<String> topics) {
 		this.id = id;
 		this.topics = topics;
 		Properties props = new Properties();
@@ -57,10 +49,12 @@ public class CommitAsyncConsumer implements Runnable {
 
 		try {
 
-			consumer.subscribe(topics);
+			consumer.subscribe(topics, new SaveOffsetOnRebalance()); // 4. pass the ConsumerRebalanceListener to the
+																// subscribe() method so it will get invoked by the
+																// consumer
 
 			while (true) {
-				ConsumerRecords<String, String> records = consumer.poll(Long.MAX_VALUE);
+				ConsumerRecords<String, String> records = consumer.poll(0);
 				for (ConsumerRecord<String, String> record : records) {
 					Map<String, Object> data = new HashMap<>();
 					data.put("partition", record.partition());
@@ -68,18 +62,11 @@ public class CommitAsyncConsumer implements Runnable {
 					data.put("value", record.value());
 					System.out.println(this.id + ": " + data);
 
-					try {
-//						consumer.commitAsync(); // commitAsync API with no arguments commits the offsets returned in the
-						// last call to poll and doesn't wait for the response from broker. but
-						// there are no retries.
+					currentOffsetsMap.put(new TopicPartition(record.topic(), record.partition()),
+							new OffsetAndMetadata(record.offset() + 1, null));
 
-						// or we can have a callback handle to log failed commits with Async API.
-						consumer.commitAsync(new OffsetCommitCallback() {
-							public void onComplete(Map<TopicPartition, OffsetAndMetadata> offsets, Exception e) {
-								if (e != null)
-									System.out.printf("Commit failed for offsets {}", offsets, e);
-							}
-						});
+					try {
+						consumer.commitAsync(currentOffsetsMap, null);
 
 					} catch (CommitFailedException e) {
 						// application specific failure handling
@@ -98,5 +85,35 @@ public class CommitAsyncConsumer implements Runnable {
 	public void shutdown() {
 		consumer.wakeup();
 	}
+
+	private class SaveOffsetOnRebalance implements ConsumerRebalanceListener { // 1. implementing a ConsumerRebalanceListener.
+
+		@Override
+		public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
+			
+			commitDBTransaction(); //this will commit offsets to DB when re-balance is initiated. 
+		}
+
+		private void commitDBTransaction() {
+			// TODO This will commit the recenly processed message offset to DB.
+			
+		}
+
+		@Override
+		public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
+			
+			for(TopicPartition partition: partitions) {
+				consumer.seek(partition, getOffsetFromDB(partition)); //to seek offset from DB when re-balance is over
+				}
+		}
+
+		private long getOffsetFromDB(TopicPartition partition) {
+			// TODO This will seek the last stored offset from DB.
+			return 0;
+		}
+
+	}// end of inner class
+
+
 
 }
