@@ -26,6 +26,7 @@ import org.apache.kafka.common.serialization.StringDeserializer;
  *         Calling it at the beginning ensures at-most-once; reducing duplicates.
  *         
  *         <pre> Third {@link CommitAsyncConsumer}
+ *         
  */
 public class CommitSyncConsumer implements Runnable {
 

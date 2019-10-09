@@ -26,7 +26,6 @@ import org.apache.kafka.common.serialization.StringDeserializer;
  *         Another option is this asynchronous commit API.
  *         
  *          <pre> Fourth {@link CommitSpecifiedOffsets}
- *
  * 
  */
 public class CommitAsyncConsumer implements Runnable {

@@ -21,7 +21,8 @@ import org.apache.kafka.common.serialization.StringDeserializer;
  * 
  *         All previous approach commit the last offset of the batches fetched
  *         by poll(). In case, we need to commit offset in the middle of the
- *         batch we can pass the map
+ *         batch we can pass the Map<TopicPartition, OffsetAndMetadata> .
+ *         
  *
  */
 public class CommitSpecifiedOffsets implements Runnable {
